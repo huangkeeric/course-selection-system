@@ -1,0 +1,1 @@
+DROP DATABASE lesson_selection_system;
