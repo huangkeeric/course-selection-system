@@ -3,7 +3,7 @@ package huangke.lessonselectionsystem.viewandcontroller;
 import huangke.lessonselectionsystem.model.Course;
 import huangke.lessonselectionsystem.model.Lesson;
 import huangke.lessonselectionsystem.model.Student;
-import huangke.lessonselectionsystem.model.database.DatabaseManager;
+import huangke.lessonselectionsystem.model.database.DatabaseConnection;
 
 import javax.swing.*;
 import java.awt.*;
@@ -17,11 +17,11 @@ public class Main {
     public static final int WIDTH = 800, HEIGHT = 600;
     public static final int DIALOG_WIDTH = 400, DIALOG_HEIGHT = 400;
 
-    static DatabaseManager databaseManager;
+    static DatabaseConnection databaseConnection;
 
     static {
         try {
-            databaseManager = new DatabaseManager();
+            databaseConnection = new DatabaseConnection();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -87,7 +87,7 @@ public class Main {
             @Override
             public void actionPerformed(ActionEvent e) {
                 try {
-                    Student student = databaseManager.queryStudent(numberTextField.getText());
+                    Student student = databaseConnection.queryStudent(numberTextField.getText());
 
                     if (student != null)
                         if (passwordField.getText().equals(student.getPassword())) {

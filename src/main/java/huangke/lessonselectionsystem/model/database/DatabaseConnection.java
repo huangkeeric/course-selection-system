@@ -4,10 +4,10 @@ import huangke.lessonselectionsystem.model.Student;
 
 import java.sql.*;
 
-public class DatabaseManager implements AutoCloseable {
+public class DatabaseConnection implements AutoCloseable {
     Connection connection;
 
-    public DatabaseManager() throws SQLException {
+    public DatabaseConnection() throws SQLException {
         connection = DriverManager.getConnection(
                 "jdbc:mysql://127.0.0.1:3306/lesson_selection_system",
                 "root",
