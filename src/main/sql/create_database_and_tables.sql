@@ -36,9 +36,10 @@ CREATE TABLE lessons (
     CHECK ((day_start_index BETWEEN 0 AND 11) AND (day_end_index BETWEEN 0 and 11) AND day_start_index <= day_end_index)
 );
 
+-- TODO: rename all to lesson_selections
 CREATE TABLE course_selections (
     student_number CHAR(13) NOT NULL REFERENCES students (student_number),
     course_id SMALLINT NOT NULL REFERENCES courses (course_id),
     lesson_index TINYINT NOT NULL,
-    PRIMARY KEY (student_number , course_id)
+    PRIMARY KEY (student_number, course_id)
 );

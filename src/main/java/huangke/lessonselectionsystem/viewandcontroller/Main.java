@@ -1,7 +1,6 @@
 package huangke.lessonselectionsystem.viewandcontroller;
 
 import huangke.lessonselectionsystem.model.Administrator;
-import huangke.lessonselectionsystem.model.Course;
 import huangke.lessonselectionsystem.model.Lesson;
 import huangke.lessonselectionsystem.model.Student;
 import huangke.lessonselectionsystem.model.database.DatabaseConnection;
@@ -11,6 +10,8 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.List;
 
 public class Main {
     public static final int WIDTH = 800, HEIGHT = 600;
@@ -25,12 +26,6 @@ public class Main {
             e.printStackTrace();
         }
     }
-
-    // TODO: remove this when database is ready
-    private static final Lesson EXAMPLE_LESSON = new Lesson(
-            new Course((short) 0, "C++", "本课程将为你讲解 C++ 程序设计入门。"),
-            (byte) 0, "张三", (byte) 0, (byte) 1, "A101"
-    );
 
     // 设置了一个函数叫做defaultFrame,统一JFrame的长和宽的大小。
     private static JFrame defaultFrame(String title) {
@@ -59,12 +54,10 @@ public class Main {
 
 
         JButton administratorButton = new JButton("管理员端");
-        administratorButton.addActionListener(e -> showadministratorLoginFrame());
+        administratorButton.addActionListener(e -> showAdministratorLoginFrame());
         frame.add(administratorButton);
 
         frame.setVisible(true); // 设置窗口为可见
-
-
     }
 
     // 学生端登录界面
@@ -97,7 +90,7 @@ public class Main {
                 if (student != null)
                     if (passwordField.getText().equals(student.getPassword())) {
                         frame.dispose(); // 关掉窗口
-                        showCourseSelectionFrame(); // 选课界面
+                        showLessonSelectionFrame(student); // 选课界面
                     } else
                         new JDialog(frame, "密码错误！")
                                 .setVisible(true);
@@ -115,15 +108,13 @@ public class Main {
         frame.setVisible(true);
     }
 
-    private static void showCourseSelectionFrame() {
-        JFrame frame = defaultFrame("学生选课");
+    private static JTable createLessonTable(List<Lesson> lessons, TableLessonListener tableLessonListener) {
+        Object[] columnNames = new Object[]{"课程ID", "课程名", "课序号", "教师", "星期", "第几节课", "教室"}; // 设置一维数组,含有这些信息，对应数据库里的表头
+        var size = lessons.size();
+        Object[][] data = new Object[size][];
+        for (int i = 0; i < size; i++)
+            data[i] = Utils.lessonToJTableObjectArray(lessons.get(i)); // 把Lesson对象转换成Object数组
 
-        JTabbedPane tabbedPane = new JTabbedPane(); // 设置标签页
-
-        Object[] columnNames = new Object[]{"课程ID", "课程名", "课序号", "教师", "第几节课", "教室"}; // 设置一维数组,含有这些信息，对应数据库里的表头
-        Object[][] data = new Object[][]{
-                Utils.lessonToJTableObjectArray(EXAMPLE_LESSON) // 把Lesson对象转换成Object数组
-        };
         JTable table = new JTable(data, columnNames); // 建立了一个表格，横着的为data，竖着的为columnNames
         /*table.setModel(new DefaultTableModel() {
             @Override
@@ -137,11 +128,48 @@ public class Main {
                 Point point = e.getPoint();
                 int row = table.rowAtPoint(point);
                 int column = table.columnAtPoint(point);
-
-                showConfirmDialog(frame, EXAMPLE_LESSON);
+                tableLessonListener.lessonClicked(lessons.get(row));
             }
         });
-        tabbedPane.addTab("选课", table);
+
+        return table;
+    }
+
+    private static List<Lesson> tryGetAllLessons(Frame frame) {
+        try {
+            return databaseConnection.queryAllLessons();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            new JDialog(frame, "发生未知 SQL 错误！")
+                    .setVisible(true);
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<Lesson> tryGetSelectedLessons(Frame frame, String studentNumber) {
+        try {
+            return databaseConnection.querySelectedLessons(studentNumber);
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            new JDialog(frame, "发生未知 SQL 错误！")
+                    .setVisible(true);
+            return Collections.emptyList();
+        }
+    }
+
+    private static void showLessonSelectionFrame(Student student) {
+        JFrame frame = defaultFrame("学生选课");
+
+        JTabbedPane tabbedPane = new JTabbedPane(); // 设置标签页
+
+        List<Lesson> lessons = tryGetAllLessons(frame);
+        var table = createLessonTable(lessons, lesson -> showConfirmDialog(frame, student, lesson));
+        tabbedPane.addTab("选课", new JScrollPane(table));
+
+        List<Lesson> selectedLessons = tryGetSelectedLessons(frame, student.getStudentNumber());
+
+        var selectedLessonsTable = createLessonTable(selectedLessons, lesson -> {/* TODO */});
+        tabbedPane.addTab("已选课程", new JScrollPane(selectedLessonsTable));
 
         frame.add(tabbedPane);
 
@@ -149,7 +177,7 @@ public class Main {
     }
 
     // 确认选课界面
-    private static void showConfirmDialog(Frame owner, Lesson lesson) {
+    private static void showConfirmDialog(Frame owner, Student student, Lesson lesson) {
         JDialog dialog = new JDialog(owner, "确认选课吗？"); // 弹出对话框“确认选课吗？”
         dialog.setLayout(new GridLayout(0, 1));
 
@@ -161,14 +189,21 @@ public class Main {
 
         JButton button = new JButton("确认选课");
         button.addActionListener(e -> {
-            // TODO
+            try {
+                databaseConnection.addLessonSelection(student.getStudentNumber(), lesson.getCourse().getCourseId(), lesson.getLessonIndex());
+                dialog.dispose();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                new JDialog(dialog, "发生 SQL 错误！")
+                        .setVisible(true);
+            }
         });
         dialog.add(button);
 
         dialog.setVisible(true);
     }
 
-    private static void showadministratorLoginFrame() {
+    private static void showAdministratorLoginFrame() {
         JFrame frame = defaultFrame("登录");
         frame.setLayout(new GridLayout(0, 1));
 
@@ -212,42 +247,28 @@ public class Main {
         }); // 同上此处为lambda表达式，作用是把->后面的函数作为参数传给这个函数。在这里，传进来的函数是在每次鼠标点击按钮时被执行。
         frame.add(loginButton);
 
-
         frame.setVisible(true);
     }
 
     private static void showAdministratorFrame() {
-   /*     JFrame frame = defaultFrame("学生选课");
+        JFrame frame = defaultFrame("管理员管理");
 
         JTabbedPane tabbedPane = new JTabbedPane(); // 设置标签页
 
-        Object[] columnNames = new Object[]{"课程ID", "课程名", "课序号", "教师", "第几节课", "教室"}; // 设置一维数组,含有这些信息，对应数据库里的表头
-        Object[][] data = new Object[][]{
-                Utils.lessonToJTableObjectArray(EXAMPLE_LESSON) // 把Lesson对象转换成Object数组
-        };
-        JTable table = new JTable(data, columnNames); // 建立了一个表格，横着的为data，竖着的为columnNames
-        *//*table.setModel(new DefaultTableModel() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        });*//*
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                Point point = e.getPoint();
-                int row = table.rowAtPoint(point);
-                int column = table.columnAtPoint(point);
-
-                showConfirmDialog(frame, EXAMPLE_LESSON);
-            }
-        });
-        tabbedPane.addTab("选课", table);
+        var lessons = tryGetAllLessons(frame);
+        var table = createLessonTable(lessons, Main::showAdministratorLessonFrame);
+        tabbedPane.addTab("课程管理", new JScrollPane(table));
 
         frame.add(tabbedPane);
 
         frame.setVisible(true);
-    */
     }
 
+    private static void showAdministratorLessonFrame(Lesson lesson) {
+        // TODO
+    }
+
+    private interface TableLessonListener {
+        void lessonClicked(Lesson lesson);
+    }
 }
