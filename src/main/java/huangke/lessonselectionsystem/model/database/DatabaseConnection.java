@@ -22,6 +22,10 @@ public class DatabaseConnection implements AutoCloseable {
         connection.close();
     }
 
+    private Student getStudent(ResultSet resultSet) throws SQLException {
+        return new Student(resultSet.getString(1), resultSet.getString(2), resultSet.getString(3));
+    }
+
     //查询学生登录信息
     public Student queryStudent(String studentNumber) throws SQLException {
         try (PreparedStatement prepareStatement =
@@ -30,7 +34,7 @@ public class DatabaseConnection implements AutoCloseable {
 
             ResultSet resultSet = prepareStatement.executeQuery();
             if (resultSet.next())
-                return new Student(resultSet.getString(1), resultSet.getString(2), resultSet.getString(3));
+                return getStudent(resultSet);
             else
                 return null;
         }
@@ -51,7 +55,7 @@ public class DatabaseConnection implements AutoCloseable {
         }
     }
 
-    public List<Lesson> getLessons(ResultSet resultSet) throws SQLException {
+    private List<Lesson> getLessons(ResultSet resultSet) throws SQLException {
         ArrayList<Lesson> lessons = new ArrayList<>();
 
         while (resultSet.next())
@@ -94,10 +98,14 @@ public class DatabaseConnection implements AutoCloseable {
             var resultSet = prepareStatement.executeQuery(); // 执行查询，将结果存入resultSet
             var students = new ArrayList<StudentWithoutPassword>();
             while (resultSet.next())
-                students.add(new StudentWithoutPassword(resultSet.getString(1), resultSet.getString(2)));
+                students.add(getStudentWithoutPassword(resultSet));
 
             return students;
         }
+    }
+
+    private StudentWithoutPassword getStudentWithoutPassword(ResultSet resultSet) throws SQLException {
+        return new StudentWithoutPassword(resultSet.getString(1), resultSet.getString(2));
     }
 
     public void addStudent(Student student) throws SQLException {
@@ -147,6 +155,35 @@ public class DatabaseConnection implements AutoCloseable {
             preparedStatement.setShort(2, courseId);
             preparedStatement.setByte(3, lessonIndex);
 
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    public void deleteLesson(short courseId, byte lessonIndex) throws SQLException {
+        try (var preparedStatement =
+                     connection.prepareStatement("DELETE FROM course_selections WHERE course_id = ? and lesson_index = ?;")) {
+            preparedStatement.setShort(1, courseId);
+            preparedStatement.setByte(2, lessonIndex);
+
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    public List<StudentWithoutPassword> queryAllStudentWithoutPasswords() throws SQLException {
+        try (var preparedStatement =
+                     connection.prepareStatement("SELECT student_number, name FROM students;")) {
+            var resultSet = preparedStatement.executeQuery();
+            var students = new ArrayList<StudentWithoutPassword>();
+            while (resultSet.next())
+                students.add(getStudentWithoutPassword(resultSet));
+            return students;
+        }
+    }
+
+    public void deleteStudent(String studentNumber) throws SQLException {
+        try (var preparedStatement =
+                     connection.prepareStatement("DELETE FROM students WHERE student_number = ?;")) {
+            preparedStatement.setString(1, studentNumber);
             preparedStatement.executeUpdate();
         }
     }

@@ -1,8 +1,6 @@
 package huangke.lessonselectionsystem.viewandcontroller;
 
-import huangke.lessonselectionsystem.model.Administrator;
-import huangke.lessonselectionsystem.model.Lesson;
-import huangke.lessonselectionsystem.model.Student;
+import huangke.lessonselectionsystem.model.*;
 import huangke.lessonselectionsystem.model.database.DatabaseConnection;
 
 import javax.swing.*;
@@ -12,6 +10,7 @@ import java.awt.event.MouseEvent;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Main {
     public static final int WIDTH = 800, HEIGHT = 600;
@@ -182,8 +181,7 @@ public class Main {
         dialog.setLayout(new GridLayout(0, 1));
 
         dialog.setSize(DIALOG_WIDTH, DIALOG_HEIGHT);
-        // TODO: change the shown text
-        JTextArea textArea = new JTextArea(lesson.toString().replace(' ', '\n'));
+        JTextArea textArea = new JTextArea(Utils.getLessonDisplayString(lesson));
         textArea.setEditable(false);
         dialog.add(textArea);
 
@@ -251,21 +249,148 @@ public class Main {
     }
 
     private static void showAdministratorFrame() {
-        JFrame frame = defaultFrame("管理员管理");
+        var frame = defaultFrame("管理员管理");
 
-        JTabbedPane tabbedPane = new JTabbedPane(); // 设置标签页
+        var tabbedPane = new JTabbedPane(); // 设置标签页
+
+        var panel = new JPanel();
+        panel.setLayout(new GridLayout(0, 1));
 
         var lessons = tryGetAllLessons(frame);
         var table = createLessonTable(lessons, Main::showAdministratorLessonFrame);
-        tabbedPane.addTab("课程管理", new JScrollPane(table));
+        panel.add(new JScrollPane(table));
 
+        List<StudentWithoutPassword> students;
+        try {
+            students = databaseConnection.queryAllStudentWithoutPasswords();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            new JDialog(frame, "发生未知 SQL 错误！")
+                    .setVisible(true);
+            students = Collections.emptyList();
+        }
+
+        var addCourseButton = new JButton("添加课程");
+        addCourseButton.addActionListener(e -> showAddCourseFrame());
+        panel.add(addCourseButton);
+
+        var addLessonButton = new JButton("添加排课");
+        panel.add(addLessonButton);
+
+        tabbedPane.addTab("课程管理", panel);
+
+        var table2 = new JTable(
+                students.stream().map(Utils::studentWithoutPasswordToJTableObjectArray)
+                        .collect(Collectors.toList()).toArray(new Object[students.size()][]),
+                new Object[]{"学号", "姓名"}
+        );
+        List<StudentWithoutPassword> finalStudents = students;
+        table2.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                Point point = e.getPoint();
+                int row = table.rowAtPoint(point);
+                int column = table.columnAtPoint(point);
+                showAdministratorStudentFrame(finalStudents.get(row));
+            }
+        });
+        tabbedPane.addTab("学生管理", new JScrollPane(table2));
         frame.add(tabbedPane);
 
         frame.setVisible(true);
     }
 
+    private static class Input extends JPanel {
+        JLabel label;
+        JTextField textField;
+
+        public Input(String labelText) {
+            label = new JLabel(labelText);
+            textField = new JTextField();
+
+            setLayout(new GridLayout(1, 0));
+            add(label);
+            add(textField);
+        }
+    }
+
+    private static void showAddCourseFrame() {
+        JFrame frame = defaultFrame("管理课程");
+        frame.setLayout(new GridLayout(0, 1));
+
+        var courseIdInput = new Input("课程号");
+        frame.add(courseIdInput);
+        var nameInput = new Input("课程名");
+        frame.add(nameInput);
+        var introductionInput = new Input("课程介绍");
+        frame.add(introductionInput);
+
+        var confirmAddButton = new JButton("确认添加");
+        confirmAddButton.addActionListener(e -> {
+            try {
+                databaseConnection.addCourse(new Course(
+                        Short.parseShort(courseIdInput.textField.getText()),
+                        nameInput.textField.getText(),
+                        introductionInput.textField.getText())
+                );
+                frame.dispose();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                new JDialog(frame, "发生 SQL 错误！")
+                        .setVisible(true);
+            }
+        });
+        frame.add(confirmAddButton);
+
+        frame.setVisible(true);
+    }
+
     private static void showAdministratorLessonFrame(Lesson lesson) {
-        // TODO
+        JFrame frame = defaultFrame("管理课程");
+        frame.setLayout(new GridLayout(0, 1));
+
+        var textArea = new JTextArea(Utils.getLessonDisplayString(lesson));
+        textArea.setEditable(false);
+        frame.add(textArea);
+
+        var deleteButton = new JButton("删除此排课");
+        deleteButton.addActionListener(e -> {
+            try {
+                databaseConnection.deleteLesson(lesson.getCourse().getCourseId(), lesson.getLessonIndex());
+                frame.dispose();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                new JDialog(frame, "发生未知 SQL 错误！")
+                        .setVisible(true);
+            }
+        });
+        frame.add(deleteButton);
+
+        frame.setVisible(true);
+    }
+
+    private static void showAdministratorStudentFrame(StudentWithoutPassword student) {
+        JFrame frame = defaultFrame("管理学生");
+        frame.setLayout(new GridLayout(0, 1));
+
+        var textArea = new JTextArea(Utils.getStudentDisplayString(student));
+        textArea.setEditable(false);
+        frame.add(textArea);
+
+        var deleteButton = new JButton("删除学生");
+        deleteButton.addActionListener(e -> {
+            try {
+                databaseConnection.deleteStudent(student.getStudentNumber());
+                frame.dispose();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                new JDialog(frame, "发生未知 SQL 错误！")
+                        .setVisible(true);
+            }
+        });
+        frame.add(deleteButton);
+
+        frame.setVisible(true);
     }
 
     private interface TableLessonListener {
